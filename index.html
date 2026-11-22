@@ -1,0 +1,521 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0d1219">
+<title>Blank Market</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+/* Trading-terminal look, dark only. Phones: one column + fixed order bar. TV: wide grid, big type. */
+:root{
+  --bg:#0c1118; --surface:#141b25; --surface-2:#1a2330; --ink:#e8edf4; --muted:#8c98a9; --line:#263142;
+  --accent:#f2b72a; --accent-ink:#1b1400; --accent-soft:#3a2e0e;
+  --up:#45c483; --down:#f06a5f; --up-soft:#12301f; --down-soft:#3a1a18;
+  --hint:#a996ff; --hint-soft:#2a2350;
+  --f-display:"Big Shoulders Display","Arial Narrow",Impact,sans-serif;
+  --f-body:"Inter Tight",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+  --r:10px; color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0;background:var(--bg);color:var(--ink)}
+body{font-family:var(--f-body);font-size:15px;line-height:1.45;-webkit-font-smoothing:antialiased;
+  padding:env(safe-area-inset-top,0) max(16px,env(safe-area-inset-right,0px)) 130px max(16px,env(safe-area-inset-left,0px))}
+.wrap{max-width:1120px;margin:0 auto}
+.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+h1,h2,h3{font-family:var(--f-display);letter-spacing:.01em;text-wrap:balance;margin:0;line-height:1.02;text-transform:uppercase}
+h2{font-size:30px;font-weight:800} h3{font-size:20px;font-weight:600}
+p{margin:0}
+.label{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:600}
+.muted{color:var(--muted)}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid var(--line);background:var(--surface-2);border-radius:8px;padding:9px 14px;font-weight:600}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.ghost{background:transparent}
+.btn.big{padding:14px 22px;font-size:17px}
+.btn.sm{padding:5px 10px;font-size:13px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+input[type=text],input[type=number],input[type=tel]{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:9px 11px;width:100%;font-size:16px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;flex-wrap:wrap}
+.seg button{border:0;background:var(--surface-2);padding:8px 12px;font-weight:600}
+.seg button + button{border-left:1px solid var(--line)}
+.seg button.on{background:var(--ink);color:var(--bg)}
+.err{color:var(--down);font-weight:600}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:20px;display:grid;gap:16px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(110px + env(safe-area-inset-bottom,0px));background:var(--down);color:#fff;padding:10px 16px;border-radius:8px;font-weight:600;z-index:30;max-width:90vw}
+
+/* header */
+.top{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding-block:12px;border-bottom:1px solid var(--line);margin-bottom:14px}
+.brand{font-family:var(--f-display);font-weight:800;font-size:24px;letter-spacing:.04em;text-transform:uppercase;display:flex;align-items:center;gap:8px}
+.brand .slot{display:inline-block;width:34px;height:6px;background:var(--accent);border-radius:2px;transform:translateY(4px)}
+.top .meta{margin-left:auto;display:flex;gap:16px;align-items:center}
+.roundbar{display:flex;gap:2px}
+.roundbar i{width:5px;height:14px;border-radius:2px;background:var(--line)}
+.roundbar i.done{background:var(--muted)} .roundbar i.now{background:var(--accent)}
+
+/* home */
+.hero{padding-block:36px 22px;display:grid;gap:16px;max-width:760px}
+.hero h1{font-size:clamp(48px,12vw,104px);font-weight:800;line-height:.9}
+.hero h1 .gap{display:inline-block;width:1.5em;border-bottom:.09em solid var(--accent);transform:translateY(-.08em)}
+.hero p{font-size:18px;max-width:58ch;color:var(--muted)}
+.choices{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-block:8px 28px}
+.choice{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:20px;display:grid;gap:12px;align-content:start}
+.field{display:grid;gap:6px}
+.howto{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:20px;border-top:1px solid var(--line);padding-top:22px}
+.howto div{display:grid;gap:6px;align-content:start}
+.howto p{color:var(--muted);font-size:14px}
+.code{font-family:var(--f-mono);font-size:44px;letter-spacing:.18em;font-weight:600}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:var(--surface-2);border:1px solid var(--line);font-size:13px;font-weight:600}
+.pill.ok{background:var(--up-soft);color:var(--up);border-color:transparent}
+.pills{display:flex;flex-wrap:wrap;gap:8px}
+
+/* desk */
+.desk{display:flex;flex-wrap:wrap;gap:10px 26px;align-items:end;padding-bottom:14px}
+.desk .who{margin-right:auto;display:grid;gap:2px}
+.stat{display:grid;gap:2px}
+.stat .v{font-family:var(--f-mono);font-size:19px;font-weight:600;font-variant-numeric:tabular-nums}
+.dots{display:flex;gap:5px;height:26px;align-items:center}
+.dots i{width:13px;height:13px;border-radius:50%;border:2px solid var(--ink)}
+.dots i.full{background:var(--ink)}
+.news{display:grid;gap:6px;margin-bottom:14px;font-size:14px}
+
+/* stock cards */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);display:grid;align-content:start;min-width:0;overflow:hidden}
+.card.secret-on{box-shadow:0 0 0 2px var(--ink)}
+.card .head{display:flex;gap:12px;align-items:start;padding:14px 16px 6px}
+.tick{font-family:var(--f-mono);font-weight:600;font-size:12px;padding:3px 7px;border-radius:5px;color:#fff;letter-spacing:.05em;white-space:nowrap}
+.nm{font-weight:700;font-size:16px;line-height:1.2}
+.px{margin-left:auto;text-align:right;display:grid;gap:3px;justify-items:end}
+.px .p{font-family:var(--f-mono);font-size:23px;font-weight:600;line-height:1}
+.chg{font-family:var(--f-mono);font-size:12px;font-weight:600;padding:2px 6px;border-radius:4px;background:var(--surface-2);color:var(--muted);white-space:nowrap}
+.chg.up{background:var(--up-soft);color:var(--up)} .chg.down{background:var(--down-soft);color:var(--down)}
+.spark{display:block;width:100%;height:44px}
+.sparkbox{padding:0 16px}
+.rule{margin:4px 16px 0;padding:11px 12px;background:var(--surface-2);border-radius:8px;font-size:14px;line-height:1.8}
+.rule .label{display:flex;justify-content:space-between;margin-bottom:2px}
+.blank{display:inline-block;min-width:3.4em;height:1.05em;border-bottom:2px dashed var(--accent);vertical-align:-2px;margin:0 2px}
+.fill{background:var(--accent-soft);border-radius:4px;padding:1px 4px;font-weight:600}
+.fill.new{outline:2px solid var(--accent)}
+.fill.hint{background:var(--hint-soft);color:var(--hint)}
+.fill.end{background:transparent;border-bottom:2px solid var(--muted);border-radius:0;padding:0 1px}
+.stats{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;padding:12px 16px;font-size:13px;align-items:baseline}
+.stats .label{font-size:10px}
+.chips{display:flex;flex-wrap:wrap;gap:4px 10px}
+.chips span{white-space:nowrap}
+.dark-note{display:flex;gap:8px;align-items:center;font-size:13px;font-weight:600}
+.lock{display:inline-block;width:10px;height:11px;border:2px solid currentColor;border-radius:2px;position:relative;margin-top:4px;flex:none}
+.lock::before{content:"";position:absolute;left:0;top:-7px;width:6px;height:6px;border:2px solid currentColor;border-bottom:0;border-radius:4px 4px 0 0}
+.mine{padding:10px 16px;border-top:1px solid var(--line);font-size:13px;display:flex;justify-content:space-between;gap:10px}
+.order{border-top:1px solid var(--line);padding:12px 16px;display:grid;gap:10px;background:var(--surface-2)}
+.qty{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center}
+.qty .lbl{font-weight:700;font-size:13px;width:34px}
+.qty .lbl.b{color:var(--up)} .qty .lbl.s{color:var(--down)}
+.qty input{text-align:right}
+.acts{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.btn.secret.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.btn.hint{color:var(--hint)}
+.wash{font-size:12px;color:var(--accent)}
+
+/* bar */
+.bar{position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--surface);border-top:1px solid var(--line);
+  padding:10px max(16px,env(safe-area-inset-right,0px)) calc(10px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.bar .wrap{display:flex;gap:10px 20px;align-items:center;flex-wrap:wrap}
+.bar .sum{display:flex;gap:16px;flex-wrap:wrap;margin-right:auto;font-size:12px}
+.bar .sum b{font-family:var(--f-mono);font-size:15px;display:block}
+.timer{font-family:var(--f-mono);font-weight:600;font-size:22px;min-width:3.2em}
+.timer.low{color:var(--down)}
+
+/* tables & results */
+.section{display:grid;gap:14px;padding-block:18px}
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r);background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600}
+td.r,th.r{text-align:right} tr:last-child td{border-bottom:0}
+.podium{display:grid;gap:8px}
+.podium .pl{display:flex;align-items:center;gap:14px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 16px}
+.podium .pl.win{box-shadow:0 0 0 2px var(--accent)}
+.podium .rk{font-family:var(--f-display);font-weight:800;font-size:30px;width:34px}
+.podium .nm{margin-right:auto;font-size:17px}
+.bigchart{display:block;width:100%;height:auto}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:13px}
+.legend i{display:inline-block;width:12px;height:3px;border-radius:2px;margin-right:6px;vertical-align:middle}
+
+/* ===== TV ===== */
+body.tv{padding-bottom:20px;font-size:17px}
+body.tv .wrap{max-width:none}
+.tvtop{display:grid;grid-template-columns:auto 1fr auto;gap:24px;align-items:center;padding-block:16px 12px;border-bottom:1px solid var(--line);margin-bottom:16px}
+.tvtop .brand{font-size:34px}
+.tvround{display:grid;gap:6px;justify-items:center}
+.tvround .rn{font-family:var(--f-display);font-weight:800;font-size:34px;text-transform:uppercase}
+.tvclock{font-family:var(--f-mono);font-weight:600;font-size:clamp(48px,6vw,88px);line-height:1;text-align:right}
+.tvclock.low{color:var(--down)}
+.tvclock small{display:block;font-family:var(--f-body);font-size:13px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);text-align:right}
+body.tv .grid{grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:16px}
+body.tv .card .px .p{font-size:34px}
+body.tv .nm{font-size:20px}
+body.tv .tick{font-size:15px}
+body.tv .rule{font-size:18px}
+body.tv .stats{font-size:16px}
+body.tv .spark{height:70px}
+.banner{display:flex;gap:16px;align-items:center;flex-wrap:wrap;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 18px;margin-bottom:16px}
+.banner h2{font-size:34px;margin-right:auto}
+.lobbytv{display:grid;grid-template-columns:1fr auto;gap:40px;align-items:center;min-height:70vh}
+.lobbytv .code{font-size:clamp(80px,12vw,180px)}
+.qr{background:#fff;padding:16px;border-radius:12px;display:inline-block}
+.qr img,.qr canvas{display:block}
+@media (max-width:720px){.lobbytv{grid-template-columns:1fr}.tvtop{grid-template-columns:1fr auto}.tvround{display:none}}
+@media (max-width:520px){.grid{grid-template-columns:1fr}.px .p{font-size:20px}}
+@media (prefers-reduced-motion:no-preference){.fill.new{animation:pop 1s ease-out 1}@keyframes pop{0%{transform:scale(1.3)}100%{transform:scale(1)}}}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+<div id="barHost"></div>
+<div id="toastHost"></div>
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const money=v=>(v<0?'-$':'$')+Math.abs(v).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const money0=v=>(v<0?'-$':'$')+Math.round(Math.abs(v)).toLocaleString('en-US');
+const store={get(k){try{return JSON.parse(localStorage.getItem(k));}catch(e){return null;}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}},del(k){try{localStorage.removeItem(k);}catch(e){}}};
+const qs=new URLSearchParams(location.search);
+const PRESETS={quick:{rounds:10,stocks:4},standard:{rounds:15,stocks:5},full:{rounds:20,stocks:6}};
+
+const S={mode:qs.get('tv')?'tv':qs.get('g')?'player':'home',code:(qs.get('tv')||qs.get('g')||'').toUpperCase(),
+  v:null,err:'',sess:null,offset:0,draft:null,dirty:false,sig:'',hintAsk:null,autoSent:false,
+  form:{name:store.get('bm.name')||'',code:(qs.get('join')||'').toUpperCase(),preset:'full',timer:90,cash:10000,tvcode:''}};
+if(S.mode==='player')S.sess=store.get('bm.s.'+S.code);
+
+async function api(action,body={}){
+  const r=await fetch('/api/game',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,...body})});
+  let j={};try{j=await r.json();}catch(e){}
+  if(!r.ok)throw Object.assign(new Error(j.error||'Network error. Check your connection.'),{status:r.status});
+  return j;
+}
+function toast(m){$('#toastHost').innerHTML=`<div class="toast" role="alert">${esc(m)}</div>`;clearTimeout(toast.t);toast.t=setTimeout(()=>$('#toastHost').innerHTML='',3500);}
+const now=()=>Date.now()+S.offset;
+function secsLeft(){const v=S.v;if(!v||v.phase!=='trading'||!v.deadline)return null;return Math.max(0,Math.ceil((v.deadline-now())/1000));}
+const fmtT=s=>s==null?'':`${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
+
+/* ---------------- polling ---------------- */
+async function poll(){
+  if(S.mode==='home')return;
+  try{
+    const v=await api('view',{code:S.code,token:S.sess&&S.sess.token});
+    S.offset=v.now-Date.now();S.err='';
+    const prev=S.v;S.v=v;
+    onView(prev,v);
+  }catch(e){S.err=e.message;if(e.status===404){S.v=null;}render(true);}
+}
+function onView(prev,v){
+  if(S.mode==='player'&&v.game){
+    const r=v.game.round;
+    if(!S.draft||S.draft.round!==r){
+      S.draft={round:r,trades:{},secret:null,submitted:false};S.autoSent=false;
+      if(v.myOrder){S.draft.trades=JSON.parse(JSON.stringify(v.myOrder.trades||{}));S.draft.secret=v.myOrder.secret;S.draft.submitted=v.myOrder.submitted;}
+    }
+    if(v.phase!=='trading')S.draft.submitted=false;
+  }
+  const sig=JSON.stringify([v.phase,v.game&&v.game.round,v.ready,v.lobby,v.me,v.myOrder&&v.myOrder.submitted,v.deadline,S.err]);
+  if(sig!==S.sig){S.sig=sig;render();}
+}
+setInterval(poll,1500);
+setInterval(tick,250);
+function tick(){
+  const s=secsLeft();
+  document.querySelectorAll('[data-timer]').forEach(el=>{el.textContent=fmtT(s);el.classList.toggle('low',s!=null&&s<=10);});
+  if(S.mode==='player'&&s===0&&S.v&&S.v.phase==='trading'&&S.draft&&!S.draft.submitted&&!S.autoSent){S.autoSent=true;sendOrder(true,true);}
+}
+
+/* ---------------- render ---------------- */
+function render(force){
+  const ae=document.activeElement;
+  if(!force&&ae&&ae.tagName==='INPUT'&&ae.dataset.q){S.dirty=true;$('#barHost').innerHTML=barHtml();tick();return;}
+  S.dirty=false;
+  document.body.classList.toggle('tv',S.mode==='tv');
+  let html='';
+  if(S.mode==='home')html=vHome();
+  else if(!S.v)html=S.err?`<div class="panel" style="margin-top:30px"><h2>Can't open that game</h2><p>${esc(S.err)}</p><div><a class="btn" href="/">Back to start</a></div></div>`:`<p class="muted" style="padding:40px 0">Connecting…</p>`;
+  else if(S.mode==='tv')html=vTV();
+  else html=vPlayer();
+  $('#app').innerHTML=html;
+  $('#barHost').innerHTML=S.mode==='player'?barHtml():'';
+  if(S.mode==='tv'&&S.v&&S.v.phase==='lobby')drawQR();
+  tick();
+}
+document.addEventListener('focusout',()=>setTimeout(()=>{if(S.dirty&&!(document.activeElement&&document.activeElement.dataset&&document.activeElement.dataset.q))render();},50));
+
+/* ---------------- home ---------------- */
+function vHome(){
+  const f=S.form;const last=store.get('bm.last');
+  return`<section class="hero">
+    <h1>Blank <span class="gap"></span> Market</h1>
+    <p>Trade on your phone. Watch the market on the big screen. Every stock moves by a hidden rule with missing words. Work out the rules before everyone else and finish with the highest net worth.</p>
+  </section>
+  ${last&&store.get('bm.s.'+last)?`<div class="panel" style="margin-bottom:14px"><div class="row"><div style="margin-right:auto"><span class="label">Your last game</span><div class="num">${esc(last)}</div></div><a class="btn primary" href="/?g=${esc(last)}">Rejoin</a></div></div>`:''}
+  <div class="choices">
+    <div class="choice"><h3>Host a game</h3>
+      <div class="field"><label class="label" for="fname">Your name</label><input type="text" id="fname" data-f="name" maxlength="16" value="${esc(f.name)}" autocomplete="nickname"></div>
+      <div class="field"><span class="label">Length</span><div class="seg">${Object.entries(PRESETS).map(([k,p])=>`<button class="${f.preset===k?'on':''}" data-a="set" data-k="preset" data-v="${k}">${p.rounds} rounds · ${p.stocks} stocks</button>`).join('')}</div></div>
+      <div class="field"><span class="label">Time per round</span><div class="seg">${[45,60,90,120,180,300].map(t=>`<button class="${f.timer===t?'on':''}" data-a="set" data-k="timer" data-v="${t}">${t<60?t+'s':(t/60)+'m'}</button>`).join('')}</div></div>
+      <div class="field"><span class="label">Starting cash</span><div class="seg">${[5000,10000,25000].map(c=>`<button class="${f.cash===c?'on':''}" data-a="set" data-k="cash" data-v="${c}">${money0(c)}</button>`).join('')}</div></div>
+      <button class="btn primary big" data-a="create">Create game</button>
+    </div>
+    <div class="choice"><h3>Join a game</h3>
+      <div class="field"><label class="label" for="jname">Your name</label><input type="text" id="jname" data-f="name" maxlength="16" value="${esc(f.name)}" autocomplete="nickname"></div>
+      <div class="field"><label class="label" for="jcode">Game code</label><input type="text" id="jcode" data-f="code" maxlength="4" value="${esc(f.code)}" placeholder="ABCD" autocapitalize="characters" style="font-family:var(--f-mono);letter-spacing:.25em;text-transform:uppercase"></div>
+      <button class="btn primary big" data-a="join">Join</button>
+      <div style="border-top:1px solid var(--line);padding-top:12px;display:grid;gap:8px"><span class="label">Big screen</span><p class="muted" style="font-size:14px">Open the dashboard on a TV or laptop for everyone to watch.</p>
+        <div class="row"><input type="text" id="tcode" data-f="tvcode" maxlength="4" value="${esc(f.tvcode)}" placeholder="Code" style="max-width:120px;font-family:var(--f-mono);letter-spacing:.2em;text-transform:uppercase"><button class="btn" data-a="tv">Open dashboard</button></div></div>
+    </div>
+  </div>
+  ${S.err?`<p class="err" style="margin-bottom:16px">${esc(S.err)}</p>`:''}
+  <section class="howto">
+    <div><span class="label">Each round</span><p>A countdown runs. Enter how many shares of each stock to buy and to sell, then lock in. When time runs out, whatever you entered goes through.</p></div>
+    <div><span class="label">Midpoint</span><p>Words fill into the rules a few at a time. When the middle round closes, every stock reveals one more word at once.</p></div>
+    <div><span class="label">Clues</span><p>Prices, shares bought and sold, and who holds what. Buying and selling the same stock in one round counts twice toward its volume.</p></div>
+    <div><span class="label">Secrets ×3</span><p>Black out a stock for a round: its trades, holdings and next price are hidden from everyone. Some rules react to secrets.</p></div>
+    <div><span class="label">One hint</span><p>Pay 15% of your starting cash to read one stock's full rule. Only you see it.</p></div>
+  </section>`;
+}
+
+/* ---------------- shared pieces ---------------- */
+function curPrice(st){const h=st.history;const last=h[h.length-1];if(last!=null)return{p:last,hidden:false};for(let i=h.length-1;i>=0;i--)if(h[i]!=null)return{p:h[i],hidden:true};return{p:null,hidden:true};}
+function chg(a,b){if(a==null||b==null)return'';const c=(b/a-1)*100;const cls=c>0.001?'up':c<-0.001?'down':'';return`<span class="chg ${cls}">${c>0?'+':''}${c.toFixed(1)}%</span>`;}
+function spark(st,rounds,h=44){
+  const W=300,n=rounds+1,pad=4;const vals=st.history.filter(v=>v!=null);if(!vals.length)return'';
+  const mn=Math.min(...vals),mx=Math.max(...vals);
+  const X=i=>pad+i*(W-2*pad)/(n-1),Y=v=>mx===mn?h/2:h-pad-(v-mn)*(h-2*pad)/(mx-mn);
+  let d='',pen=false,lastI=-1;
+  st.history.forEach((v,i)=>{if(v==null){pen=false;return;}d+=(pen?'L':'M')+X(i).toFixed(1)+' '+Y(v).toFixed(1)+' ';pen=true;lastI=i;});
+  return`<div class="sparkbox"><svg class="spark" viewBox="0 0 ${W} ${h}" preserveAspectRatio="none" aria-hidden="true"><path d="${d}" fill="none" stroke="${st.color}" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round"/></svg></div>`;
+}
+function ruleHtml(st,hintRule){
+  const toks=hintRule&&hintRule.sid===st.id?hintRule.rule.map((t,i)=>{const p=st.rule[i];return p&&p.k==='new'?p:(t.k==='hint'?{x:t.x,k:'hint'}:t.k==='rev'?{x:t.x,k:'rev'}:{x:t.x});}):st.rule;
+  return toks.map(t=>t.k==='blank'?'<span class="blank" role="img" aria-label="hidden word"></span>':t.k?`<span class="fill ${t.k==='new'?'new':t.k==='hint'?'hint':t.k==='end'?'end':''}">${esc(t.x)}</span>`:esc(t.x)).join('');
+}
+function nameOf(id){const s=S.v.game.stocks.find(x=>x.id===id);return s?s.name:id;}
+function pname(id){const p=S.v.game.players.find(x=>x.id===id);return p?p.name:'?';}
+function statsHtml(st){
+  const rep=S.v.game.report;const r=rep&&rep.st[st.id];
+  if(!rep)return`<span class="label">Last round</span><span class="muted">No trading yet</span>`;
+  if(r.hidden)return`<span class="label">Last round</span><span class="dark-note"><i class="lock"></i>Secret used. Trades, holdings and price hidden.</span>`;
+  return`<span class="label">Bought</span><span class="num">${r.buy} <span class="muted">· ${r.buyers} ${r.buyers===1?'player':'players'}</span></span>
+    <span class="label">Sold</span><span class="num">${r.sell} <span class="muted">· ${r.sellers} ${r.sellers===1?'player':'players'}</span></span>
+    <span class="label">Holders</span><span class="chips">${S.v.game.players.map(p=>`<span>${esc(p.name)} <b class="num">${r.hold[p.id]??0}</b></span>`).join('')}</span>`;
+}
+function newsHtml(){
+  const rep=S.v.game.report;if(!rep)return'';const items=[];
+  rep.secrets.forEach(s=>items.push(`A secret was used on <b>${esc(nameOf(s))}</b> in round ${rep.round}.`));
+  if(rep.midpoint)items.push(`<b style="color:var(--accent)">Midpoint reveal:</b> every stock showed one more word.`);
+  const rv=[...new Set(rep.revealed)];if(rv.length&&!rep.midpoint)items.push(`New words revealed in ${rv.map(s=>`<b>${esc(nameOf(s))}</b>`).join(', ')}.`);
+  return items.length?`<div class="news">${items.map(i=>`<div>${i}</div>`).join('')}</div>`:'';
+}
+function roundbar(g){const R=g.rounds,cur=Math.min(g.round,R);return`<span class="roundbar" aria-hidden="true">${Array.from({length:R},(_,i)=>`<i class="${i+1<cur?'done':i+1===cur?'now':''}"></i>`).join('')}</span>`;}
+function header(extra=''){
+  const v=S.v;const g=v&&v.game;
+  return`<header class="top"><a class="brand" href="/" style="color:inherit;text-decoration:none">Blank <span class="slot"></span> Market</a>
+    <div class="meta">${g?`<span class="label">Round</span><span class="num" style="font-weight:600">${Math.min(g.round,g.rounds)}/${g.rounds}</span>${roundbar(g)}`:''}${extra}</div></header>`;
+}
+
+/* ---------------- player ---------------- */
+function vPlayer(){
+  const v=S.v;
+  if(!S.sess)return`${header()}<div class="panel"><h2>You're not in this game</h2><p class="muted">This device hasn't joined game ${esc(S.code)}.</p><div class="row"><a class="btn primary" href="/?join=${esc(S.code)}">Join it</a><a class="btn" href="/?tv=${esc(S.code)}">Watch the dashboard</a></div></div>`;
+  if(v.phase==='lobby')return header()+vLobbyPlayer();
+  if(!v.me)return`${header()}<div class="panel"><h2>Game already started</h2><p class="muted">You aren't one of the players in this game.</p><a class="btn" href="/?tv=${esc(S.code)}">Watch the dashboard</a></div>`;
+  if(v.phase==='over')return header()+vOver();
+  return header()+vDesk();
+}
+function vLobbyPlayer(){
+  const v=S.v;const url=location.origin;
+  return`<div class="panel" style="max-width:640px;margin:20px auto">
+    <span class="label">Game code</span><div class="code">${esc(v.code)}</div>
+    <p class="muted">Others join at <b>${esc(url.replace(/^https?:\/\//,''))}</b> with this code. For the big screen, open <b>${esc(url.replace(/^https?:\/\//,''))}/?tv=${esc(v.code)}</b> on the TV.</p>
+    <div class="field"><span class="label">Players (${v.lobby.length})</span><div class="pills">${v.lobby.map(p=>`<span class="pill">${esc(p.name)}${p.id===v.hostId?' · host':''}${p.id===v.myId?' · you':''}</span>`).join('')}</div></div>
+    <p class="muted">${v.settings.rounds} rounds · ${v.settings.stocks} stocks · ${fmtT(v.settings.timer)} per round · ${money0(v.settings.startCash)} each</p>
+    ${v.isHost?`<button class="btn primary big" data-a="start" ${v.lobby.length<2?'disabled':''}>${v.lobby.length<2?'Waiting for players':'Start game'}</button>`:'<p>Waiting for the host to start.</p>'}
+  </div>`;
+}
+function estWorth(){const v=S.v,me=v.me;return me.cash+v.game.stocks.reduce((a,st)=>a+(me.holdings[st.id]||0)*(curPrice(st).p||0),0);}
+function vDesk(){
+  const v=S.v,g=v.game,me=v.me;const trading=v.phase==='trading';const locked=trading&&S.draft.submitted;
+  let banner='';
+  if(v.phase==='results'){
+    const rep=g.report;
+    banner=`<div class="panel" style="margin-bottom:14px"><h3>Round ${rep.round} closed</h3>
+      <div class="tbl"><table><thead><tr><th>Stock</th><th class="r">Was</th><th class="r">Now</th><th class="r">Move</th></tr></thead><tbody>
+      ${g.stocks.map(st=>{const r=rep.st[st.id];return`<tr><td><span class="tick" style="background:${st.color}">${st.id}</span></td>${r.hidden?`<td colspan="3" class="muted"><span class="dark-note"><i class="lock"></i>Hidden</span></td>`:`<td class="r num">${money(r.before)}</td><td class="r num">${money(r.after)}</td><td class="r">${chg(r.before,r.after)}</td>`}</tr>`;}).join('')}
+      </tbody></table></div>
+      ${v.isHost?`<button class="btn primary big" data-a="next">Start round ${g.round}</button>`:`<p class="muted">Waiting for the host to start round ${g.round}.</p>`}</div>`;
+  }
+  const ready=trading?`<div class="pills" style="margin-bottom:12px">${g.players.map(p=>`<span class="pill ${v.ready.includes(p.id)?'ok':''}">${esc(p.name)}${v.ready.includes(p.id)?' · locked in':''}</span>`).join('')}${v.isHost?`<button class="btn sm ghost" data-a="endNow">End round now</button>`:''}</div>`:'';
+  return`${ready}
+  <div class="desk">
+    <div class="who"><span class="label">Your desk</span><h2>${esc(me.name)}</h2></div>
+    <div class="stat"><span class="label">Cash</span><span class="v">${money(me.cash)}</span></div>
+    <div class="stat"><span class="label">Net worth (est.)</span><span class="v">${money(estWorth())}</span></div>
+    <div class="stat"><span class="label">Secrets</span><span class="dots" aria-label="${me.secretsLeft} secrets left">${Array.from({length:v.settings.secrets},(_,i)=>`<i class="${i<me.secretsLeft?'full':''}"></i>`).join('')}</span></div>
+    <div class="stat"><span class="label">Hint</span><span class="v" style="font-size:15px">${me.hint?esc(nameOf(me.hint)):'Unused'}</span></div>
+  </div>
+  ${banner}${newsHtml()}
+  <div class="grid">${g.stocks.map(st=>stockCard(st,trading&&!locked)).join('')}</div>`;
+}
+function stockCard(st,editable){
+  const v=S.v,me=v&&v.me;const cp=curPrice(st);const h=st.history;const prev=h.length>1?h[h.length-2]:null;
+  const t=(S.draft&&S.draft.trades[st.id])||{};const secretOn=S.draft&&S.draft.secret===st.id;
+  const hinted=me&&me.hint===st.id;
+  let order='';
+  if(editable){
+    const hintBtn=!me.hint?(S.hintAsk===st.id?`<span class="acts" style="font-size:13px">Spend ${money0(v.settings.hintCost)}? <button class="btn sm primary" data-a="hintYes" data-s="${st.id}">Reveal rule</button><button class="btn sm ghost" data-a="hintNo">Cancel</button></span>`:`<button class="btn sm hint" data-a="hintAsk" data-s="${st.id}">Buy hint</button>`):'';
+    order=`<div class="order">
+      <div class="qty"><span class="lbl b">Buy</span><input type="number" inputmode="numeric" min="0" id="b-${st.id}" data-q="buy" data-s="${st.id}" value="${t.buy||''}" placeholder="0" aria-label="Shares to buy"><button class="btn sm" data-a="max" data-s="${st.id}" data-k="buy">Max</button></div>
+      <div class="qty"><span class="lbl s">Sell</span><input type="number" inputmode="numeric" min="0" id="s-${st.id}" data-q="sell" data-s="${st.id}" value="${t.sell||''}" placeholder="0" aria-label="Shares to sell"><button class="btn sm" data-a="max" data-s="${st.id}" data-k="sell">All</button></div>
+      ${t.buy&&t.sell?`<span class="wash">Buying and selling: ${(+t.buy)+(Math.min(+t.sell,me.holdings[st.id]||0))} shares of volume</span>`:''}
+      <div class="acts"><button class="btn sm secret ${secretOn?'on':''}" data-a="secret" data-s="${st.id}" ${!secretOn&&me.secretsLeft<=0?'disabled':''}><i class="lock"></i>${secretOn?'Secret on':'Use secret'}</button>${hintBtn}</div>
+      ${cp.hidden?`<p class="muted" style="font-size:12px">The price is hidden right now. Orders fill at the real price; buys stop when your cash runs out.</p>`:''}
+    </div>`;
+  }
+  const held=me?(me.holdings[st.id]||0):0;
+  return`<article class="card ${secretOn?'secret-on':''}">
+    <div class="head"><span class="tick" style="background:${st.color}">${st.id}</span><div style="min-width:0"><div class="nm">${esc(st.name)}</div></div>
+      <div class="px"><span class="p">${cp.hidden?'$ ? ? ?':money(cp.p)}</span>${cp.hidden?`<span class="chg">last seen ${cp.p!=null?money(cp.p):'?'}</span>`:chg(prev,cp.p)}</div></div>
+    ${spark(st,S.v.game.rounds,S.mode==='tv'?70:44)}
+    <div class="rule"><div class="label"><span>Rule</span>${hinted?'<span style="color:var(--hint)">Your hint</span>':''}</div>${ruleHtml(st,me&&me.hintRule)}</div>
+    <div class="stats">${statsHtml(st)}</div>
+    ${me&&S.mode==='player'?`<div class="mine"><span>You hold <b class="num">${held}</b></span><span class="muted num">${cp.hidden?'value hidden':money(held*(cp.p||0))}</span></div>`:''}
+    ${order}
+  </article>`;
+}
+function draftCost(){
+  const v=S.v,me=v.me;let buy=0,sell=0,unknown=false;
+  for(const st of v.game.stocks){const t=S.draft.trades[st.id];if(!t)continue;const cp=curPrice(st);if(cp.hidden)unknown=true;
+    buy+=(+t.buy||0)*(cp.p||0);sell+=Math.min(+t.sell||0,me.holdings[st.id]||0)*(cp.p||0);}
+  return{buy,sell,after:me.cash+sell-buy,unknown};
+}
+function barHtml(){
+  const v=S.v;if(!v||!v.me||v.phase!=='trading'||!S.draft)return'';
+  const c=draftCost();const over=c.after<-0.005;
+  if(S.draft.submitted)return`<div class="bar"><div class="wrap"><span class="timer" data-timer></span><div class="sum"><div><span class="label">Status</span><b style="color:var(--up)">Locked in</b></div><div><span class="label">Cash after</span><b>${money0(c.after)}${c.unknown?' ~':''}</b></div></div><button class="btn big" data-a="unlock">Change orders</button></div></div>`;
+  return`<div class="bar"><div class="wrap">
+    <span class="timer" data-timer></span>
+    <div class="sum"><div><span class="label">Buying</span><b>${money0(c.buy)}</b></div><div><span class="label">Selling</span><b>${money0(c.sell)}</b></div>
+      <div><span class="label">Cash after</span><b style="color:${over?'var(--down)':'inherit'}">${money0(c.after)}${c.unknown?' ~':''}</b></div></div>
+    <button class="btn primary big" data-a="lock">Lock in</button>
+  </div></div>`;
+}
+let saveTimer=null;
+function queueSave(){clearTimeout(saveTimer);saveTimer=setTimeout(()=>sendOrder(false),1200);}
+async function sendOrder(submitted,auto){
+  if(!S.v||S.v.phase!=='trading'||!S.draft)return;
+  clearTimeout(saveTimer);
+  const d=S.draft;
+  try{
+    await api('order',{code:S.code,token:S.sess.token,round:d.round,trades:d.trades,secret:d.secret,submitted});
+    if(submitted){d.submitted=true;render(true);}
+    poll();
+  }catch(e){if(!auto)toast(e.message);}
+}
+
+/* ---------------- game over (shared) ---------------- */
+function vOver(){
+  const g=S.v.game;const st=g.standings;
+  const W=760,H=260,pad=38,n=g.rounds+1;const all=Object.values(g.fullHistory).flat();const mn=Math.min(...all),mx=Math.max(...all);
+  const X=i=>pad+i*(W-pad-10)/(n-1),Y=v=>H-24-(v-mn)*(H-24-12)/(mx-mn||1);
+  const chart=`<svg class="bigchart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Price history of every stock">
+    ${[mn,(mn+mx)/2,mx].map(v=>`<line x1="${pad}" x2="${W-10}" y1="${Y(v)}" y2="${Y(v)}" stroke="#263142"/><text x="${pad-6}" y="${Y(v)+4}" text-anchor="end" font-size="11" fill="#8c98a9" font-family="JetBrains Mono,monospace">${Math.round(v)}</text>`).join('')}
+    ${[1,Math.ceil(n/2),n].map(i=>`<text x="${X(i-1)}" y="${H-6}" text-anchor="middle" font-size="11" fill="#8c98a9" font-family="JetBrains Mono,monospace">R${i}</text>`).join('')}
+    ${g.stocks.map(s=>`<path d="${g.fullHistory[s.id].map((v,i)=>(i?'L':'M')+X(i).toFixed(1)+' '+Y(v).toFixed(1)).join(' ')}" fill="none" stroke="${s.color}" stroke-width="2.4" stroke-linejoin="round"/>`).join('')}</svg>`;
+  return`<section class="section"><span class="label">Final standings</span><h2 style="font-size:clamp(40px,8vw,84px)">${esc(st[0].name)} wins</h2>
+    <div class="podium">${st.map((p,i)=>`<div class="pl ${i===0?'win':''}"><span class="rk">${i+1}</span><span class="nm">${esc(p.name)}</span><span class="num" style="font-size:18px;font-weight:600">${money(p.nw)}</span></div>`).join('')}</div></section>
+  <section class="section"><h3>Every price, every round</h3><div class="panel">${chart}<div class="legend">${g.stocks.map(s=>{const h=g.fullHistory[s.id];return`<span><i style="background:${s.color}"></i>${esc(s.name)} <span class="num muted">${money(h[h.length-1])}</span></span>`;}).join('')}</div></div></section>
+  <section class="section"><h3>The full rules</h3><p class="muted">Highlighted words were revealed during the game. Underlined words stayed hidden.</p>
+    <div class="grid">${g.stocks.map(s=>`<div class="card"><div class="head"><span class="tick" style="background:${s.color}">${s.id}</span><div class="nm">${esc(s.name)}</div></div><div class="rule" style="margin-bottom:14px">${ruleHtml(s)}</div></div>`).join('')}</div></section>
+  <section class="section"><h3>Who did what</h3><div class="tbl"><table><thead><tr><th>Player</th><th>Secrets used</th><th>Hint</th><th class="r">Cash</th></tr></thead><tbody>
+    ${st.map(p=>`<tr><td>${esc(p.name)}</td><td>${p.secretsUsed.length?p.secretsUsed.map(s=>`R${s.round} ${s.sid}`).join(', '):'<span class="muted">none</span>'}</td><td>${p.hint?`R${p.hintRound} ${p.hint}`:'<span class="muted">none</span>'}</td><td class="r num">${money(p.cash)}</td></tr>`).join('')}
+  </tbody></table></div><div><a class="btn primary big" href="/">New game</a></div></section>`;
+}
+
+/* ---------------- TV ---------------- */
+function vTV(){
+  const v=S.v;const g=v.game;
+  if(v.phase==='lobby'){
+    const host=location.host;
+    return`<div class="lobbytv">
+      <div style="display:grid;gap:18px"><div class="brand" style="font-size:40px">Blank <span class="slot"></span> Market</div>
+        <span class="label" style="font-size:16px">Join at ${esc(host)} with code</span>
+        <div class="code">${esc(v.code)}</div>
+        <div class="pills" style="font-size:18px">${v.lobby.map(p=>`<span class="pill" style="font-size:18px;padding:6px 14px">${esc(p.name)}</span>`).join('')||'<span class="muted">Waiting for players…</span>'}</div>
+        <p class="muted">${v.settings.rounds} rounds · ${v.settings.stocks} stocks · ${fmtT(v.settings.timer)} per round. The host starts the game from their phone.</p>
+        <div class="row"><button class="btn" data-a="fs">Full screen</button></div>
+      </div>
+      <div class="qr" id="qr" aria-label="QR code to join"></div>
+    </div>`;
+  }
+  if(v.phase==='over')return`<div class="tvtop"><div class="brand">Blank <span class="slot"></span> Market</div><div></div><div class="tvclock">Final</div></div>`+vOver();
+  const trading=v.phase==='trading';
+  const ready=trading?`<div class="pills" style="margin-bottom:14px">${g.players.map(p=>`<span class="pill ${v.ready.includes(p.id)?'ok':''}" style="font-size:16px;padding:6px 12px">${esc(p.name)}${v.ready.includes(p.id)?' · locked in':' · trading'}</span>`).join('')}</div>`:'';
+  const banner=v.phase==='results'?`<div class="banner" ${g.report.midpoint?'style="box-shadow:0 0 0 2px var(--accent)"':''}><h2>${g.report.midpoint?`<span style="color:var(--accent)">Midpoint reveal</span> · `:''}Round ${g.report.round} closed</h2>${newsHtml().replace('class="news"','class="news" style="margin:0"')}<span class="muted">Waiting for the host to start round ${g.round}</span></div>`:'';
+  return`<div class="tvtop">
+      <div class="brand">Blank <span class="slot"></span> Market</div>
+      <div class="tvround"><span class="rn">Round ${Math.min(g.round,g.rounds)} of ${g.rounds}</span>${roundbar(g)}</div>
+      <div class="tvclock">${trading?`<small>Time left</small><span data-timer></span>`:`<small>Code</small>${esc(v.code)}`}</div>
+    </div>
+    ${ready}${banner}${trading?newsHtml():''}
+    <div class="grid">${g.stocks.map(st=>stockCard(st,false)).join('')}</div>`;
+}
+function drawQR(){const el=$('#qr');if(!el)return;if(!window.QRCode){el.hidden=true;return;}el.innerHTML='';new QRCode(el,{text:`${location.origin}/?join=${S.v.code}`,width:260,height:260,colorDark:'#0c1118',colorLight:'#ffffff'});}
+
+/* ---------------- actions ---------------- */
+const A={
+  set(b){S.form[b.dataset.k]=b.dataset.k==='preset'?b.dataset.v:+b.dataset.v;render();},
+  async create(){
+    try{const r=await api('create',{name:S.form.name,preset:S.form.preset,timer:S.form.timer,startCash:S.form.cash});enter(r);}catch(e){S.err=e.message;render();}
+  },
+  async join(){
+    try{const r=await api('join',{code:S.form.code,name:S.form.name});enter(r);}catch(e){S.err=e.message;render();}
+  },
+  tv(){const c=S.form.tvcode.trim().toUpperCase();if(!/^[A-Z]{4}$/.test(c)){S.err='Enter the four-letter game code.';render();return;}location.href='/?tv='+c;},
+  async start(){try{await api('start',{code:S.code,token:S.sess.token});poll();}catch(e){toast(e.message);}},
+  async next(){try{await api('next',{code:S.code,token:S.sess.token});poll();}catch(e){toast(e.message);}},
+  async endNow(){try{await api('endNow',{code:S.code,token:S.sess.token});poll();}catch(e){toast(e.message);}},
+  max(b){
+    const sid=b.dataset.s,k=b.dataset.k;const t=S.draft.trades[sid]||(S.draft.trades[sid]={buy:0,sell:0});const me=S.v.me;
+    if(k==='sell')t.sell=me.holdings[sid]||0;
+    else{t.buy=0;const c=draftCost();const st=S.v.game.stocks.find(s=>s.id===sid);const p=curPrice(st).p||1;t.buy=Math.max(0,Math.floor(c.after/p));}
+    queueSave();render(true);
+  },
+  secret(b){S.draft.secret=S.draft.secret===b.dataset.s?null:b.dataset.s;queueSave();render(true);},
+  hintAsk(b){S.hintAsk=b.dataset.s;render(true);},
+  hintNo(){S.hintAsk=null;render(true);},
+  async hintYes(b){S.hintAsk=null;try{await api('hint',{code:S.code,token:S.sess.token,sid:b.dataset.s});await poll();}catch(e){toast(e.message);}},
+  lock(){sendOrder(true);},
+  async unlock(){S.draft.submitted=false;render(true);sendOrder(false);},
+  fs(){try{document.documentElement.requestFullscreen&&document.documentElement.requestFullscreen();}catch(e){}},
+};
+function enter(r){store.set('bm.s.'+r.code,{token:r.token,pid:r.pid});store.set('bm.last',r.code);store.set('bm.name',S.form.name);location.href='/?g='+r.code;}
+document.addEventListener('click',e=>{const b=e.target.closest('[data-a]');if(!b||b.disabled)return;const f=A[b.dataset.a];if(f){e.preventDefault();f(b);}});
+document.addEventListener('input',e=>{
+  const el=e.target;
+  if(el.dataset.f){S.form[el.dataset.f]=el.dataset.f==='code'||el.dataset.f==='tvcode'?el.value.toUpperCase():el.value;return;}
+  if(el.dataset.q&&S.draft){const sid=el.dataset.s;const t=S.draft.trades[sid]||(S.draft.trades[sid]={buy:0,sell:0});t[el.dataset.q]=Math.max(0,Math.floor(+el.value||0));$('#barHost').innerHTML=barHtml();tick();queueSave();}
+});
+document.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.dataset&&e.target.dataset.q)e.target.blur();});
+/* keep the TV awake */
+async function wake(){try{if(navigator.wakeLock)S.wl=await navigator.wakeLock.request('screen');}catch(e){}}
+if(S.mode==='tv'){document.addEventListener('click',wake,{once:true});wake();document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')wake();});}
+
+render();poll();
+</script>
+</body>
+</html>
