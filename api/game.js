@@ -156,12 +156,10 @@ const actions = {
     if (Date.now() > rec.deadline + GRACE) throw new Bad('Time is up for this round.', 409);
     const ids = rec.state.stocks.map(s => s.id);
     const p = rec.state.players.find(x => x.id === v.id);
-    const trades = {};
-    for (const sid of ids) {
-      const t = (b.trades || {})[sid]; if (!t) continue;
-      const buy = Math.max(0, Math.min(1e6, Math.floor(+t.buy || 0))), sell = Math.max(0, Math.min(1e6, Math.floor(+t.sell || 0)));
-      const times = Math.max(1, Math.min(1000, Math.floor(+t.times || 1)));
-      if (buy || sell) trades[sid] = { buy, sell, times };
+    const trades = [];
+    for (const t of (Array.isArray(b.trades) ? b.trades : []).slice(0, 500)) {
+      const qty = Math.max(0, Math.min(1e6, Math.floor(+(t && t.qty) || 0)));
+      if (qty && ids.includes(t.sid) && (t.side === 'buy' || t.side === 'sell')) trades.push({ sid: t.sid, side: t.side, qty });
     }
     let secret = ids.includes(b.secret) ? b.secret : null;
     if (secret && p.secretsLeft <= 0) secret = null;

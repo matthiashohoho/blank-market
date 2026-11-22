@@ -125,6 +125,14 @@ input[type=text],input[type=number],input[type=tel]{background:var(--bg);border:
 .btn.secret.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
 .btn.hint{color:var(--hint)}
 .wash{font-size:12px;color:var(--accent)}
+.qty2{display:grid;grid-template-columns:1fr auto auto;gap:8px}
+.qty2 input{text-align:right}
+.btn.tbuy{background:var(--up);border-color:var(--up);color:#07140c;min-width:64px}
+.btn.tsell{background:var(--down);border-color:var(--down);color:#1d0705;min-width:64px}
+.queue{display:grid;gap:8px}
+.queue .chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.tchip{font-family:var(--f-mono);font-size:12px;font-weight:600;padding:3px 8px;border-radius:5px}
+.tchip.buy{background:var(--up-soft);color:var(--up)} .tchip.sell{background:var(--down-soft);color:var(--down)}
 
 /* bar */
 .bar{position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--surface);border-top:1px solid var(--line);
@@ -222,8 +230,8 @@ function onView(prev,v){
   if(S.mode==='player'&&v.game){
     const r=v.game.round;
     if(!S.draft||S.draft.round!==r){
-      S.draft={round:r,trades:{},secret:null,submitted:false};S.autoSent=false;
-      if(v.myOrder){S.draft.trades=JSON.parse(JSON.stringify(v.myOrder.trades||{}));S.draft.secret=v.myOrder.secret;S.draft.submitted=v.myOrder.submitted;}
+      S.draft={round:r,trades:[],qty:{},secret:null,submitted:false};S.autoSent=false;
+      if(v.myOrder){S.draft.trades=Array.isArray(v.myOrder.trades)?JSON.parse(JSON.stringify(v.myOrder.trades)):[];S.draft.secret=v.myOrder.secret;S.draft.submitted=v.myOrder.submitted;}
     }
     if(v.phase!=='trading')S.draft.submitted=false;
   }
@@ -282,9 +290,9 @@ function vHome(){
   </div>
   ${S.err?`<p class="err" style="margin-bottom:16px">${esc(S.err)}</p>`:''}
   <section class="howto">
-    <div><span class="label">Each round</span><p>A countdown runs. Enter how many shares of each stock to buy and to sell, then lock in. When time runs out, whatever you entered goes through.</p></div>
+    <div><span class="label">Each round</span><p>A countdown runs. Enter a number of shares and tap Buy or Sell, as often as you like, then lock in. When time runs out, whatever you entered goes through.</p></div>
     <div><span class="label">Midpoint</span><p>Words fill into the rules a few at a time. When the middle round closes, every stock reveals one more word at once.</p></div>
-    <div><span class="label">Clues</span><p>Prices, shares bought and sold, and who holds what. Use Repeat to sell and buy the same stock over and over in one round. Every fill counts toward its volume.</p></div>
+    <div><span class="label">Clues</span><p>Prices, shares bought and sold, and who holds what. Tap Buy and Sell as many times as you like in one round. Your trades run in that order, and every fill counts toward the stock's volume.</p></div>
     <div><span class="label">Secrets ×3</span><p>Black out a stock for a round: its trades, holdings and next price are hidden from everyone. Some rules react to secrets.</p></div>
     <div><span class="label">One hint</span><p>Pay 15% of your starting cash to read one stock's full rule. Only you see it.</p></div>
   </section>`;
@@ -375,16 +383,17 @@ function vDesk(){
 }
 function stockCard(st,editable){
   const v=S.v,me=v&&v.me;const cp=curPrice(st);const h=st.history;const prev=h.length>1?h[h.length-2]:null;
-  const t=(S.draft&&S.draft.trades[st.id])||{};const secretOn=S.draft&&S.draft.secret===st.id;
+  const mineT=S.draft?S.draft.trades.filter(x=>x.sid===st.id):[];const q=S.draft&&S.draft.qty[st.id]!=null?S.draft.qty[st.id]:'';const secretOn=S.draft&&S.draft.secret===st.id;
   const hinted=me&&me.hint===st.id;
   let order='';
   if(editable){
     const hintBtn=!me.hint?(S.hintAsk===st.id?`<span class="acts" style="font-size:13px">Spend ${money0(v.settings.hintCost)}? <button class="btn sm primary" data-a="hintYes" data-s="${st.id}">Reveal rule</button><button class="btn sm ghost" data-a="hintNo">Cancel</button></span>`:`<button class="btn sm hint" data-a="hintAsk" data-s="${st.id}">Buy hint</button>`):'';
     order=`<div class="order">
-      <div class="qty"><span class="lbl b">Buy</span><input type="number" inputmode="numeric" min="0" id="b-${st.id}" data-q="buy" data-s="${st.id}" value="${t.buy||''}" placeholder="0" aria-label="Shares to buy"><button class="btn sm" data-a="max" data-s="${st.id}" data-k="buy">Max</button></div>
-      <div class="qty"><span class="lbl s">Sell</span><input type="number" inputmode="numeric" min="0" id="s-${st.id}" data-q="sell" data-s="${st.id}" value="${t.sell||''}" placeholder="0" aria-label="Shares to sell"><button class="btn sm" data-a="max" data-s="${st.id}" data-k="sell">All</button></div>
-      <div class="qty"><span class="lbl">Repeat</span><input type="number" inputmode="numeric" min="1" max="1000" id="r-${st.id}" data-q="times" data-s="${st.id}" value="${t.times>1?t.times:''}" placeholder="×1" aria-label="Times to repeat sell then buy"><span class="muted" style="font-size:12px;width:44px">times</span></div>
-      ${(t.buy||t.sell)?`<span class="wash" data-est="${st.id}">${estLine(st.id)}</span>`:''}
+      <div class="qty2"><input type="number" inputmode="numeric" min="1" id="q-${st.id}" data-q="qty" data-s="${st.id}" value="${q}" placeholder="Shares" aria-label="Number of shares">
+        <button class="btn tbuy" data-a="add" data-s="${st.id}" data-k="buy">Buy</button><button class="btn tsell" data-a="add" data-s="${st.id}" data-k="sell">Sell</button></div>
+      <div class="acts" style="font-size:12px"><button class="btn sm ghost" data-a="maxq" data-s="${st.id}" data-k="buy">Max I can buy</button><button class="btn sm ghost" data-a="maxq" data-s="${st.id}" data-k="sell">All I'll hold</button></div>
+      ${mineT.length?`<div class="queue"><div class="chips">${mineT.map(x=>`<span class="tchip ${x.side}">${x.side==='buy'?'Buy':'Sell'} ${x.qty}</span>`).join('<span class="muted">→</span>')}</div>
+        <div class="row" style="justify-content:space-between"><span class="wash" data-est="${st.id}">${estLine(st.id)}</span><span class="row" style="gap:6px"><button class="btn sm" data-a="undo" data-s="${st.id}">Undo</button><button class="btn sm ghost" data-a="clr" data-s="${st.id}">Clear</button></span></div></div>`:''}
       <div class="acts"><button class="btn sm secret ${secretOn?'on':''}" data-a="secret" data-s="${st.id}" ${!secretOn&&me.secretsLeft<=0?'disabled':''}><i class="lock"></i>${secretOn?'Secret on':'Use secret'}</button>${hintBtn}</div>
       ${cp.hidden?`<p class="muted" style="font-size:12px">The price is hidden right now. Orders fill at the real price; buys stop when your cash runs out.</p>`:''}
     </div>`;
@@ -401,19 +410,15 @@ function stockCard(st,editable){
   </article>`;
 }
 function simDraft(){
-  const v=S.v,me=v.me;let cash=me.cash;const hold={...me.holdings};const vol={},net={};let buy=0,sell=0,unknown=false;
-  const tr=S.draft.trades;const ids=Object.keys(tr);const px={};
-  for(const sid of ids){const st=v.game.stocks.find(s=>s.id===sid);const cp=curPrice(st);px[sid]=cp.p||0;if(cp.hidden)unknown=true;vol[sid]=0;net[sid]=0;}
-  const tm=t=>Math.max(1,Math.min(1000,Math.floor(+t.times||1)));
-  const maxT=Math.max(1,...ids.map(i=>tm(tr[i])));
-  for(let k=1;k<=maxT;k++){
-    for(const sid of ids){const t=tr[sid];if(k>tm(t))continue;const n=Math.min(+t.sell||0,hold[sid]||0);if(n>0){hold[sid]=(hold[sid]||0)-n;cash+=n*px[sid];sell+=n*px[sid];vol[sid]+=n;net[sid]-=n;}}
-    for(const sid of ids){const t=tr[sid];if(k>tm(t)||!px[sid])continue;const n=Math.min(+t.buy||0,Math.floor(Math.max(0,cash)/px[sid]));if(n>0){hold[sid]=(hold[sid]||0)+n;cash-=n*px[sid];buy+=n*px[sid];vol[sid]+=n;net[sid]+=n;}}
-  }
-  return{buy,sell,after:cash,unknown,vol,net,wantBuy:ids.reduce((a,i)=>a+(+tr[i].buy||0)*tm(tr[i])*px[i],0)};
+  const v=S.v,me=v.me;let cash=me.cash;const hold={...me.holdings};const vol={},net={},short={};let buy=0,sell=0,unknown=false,want=0;
+  for(const t of S.draft.trades){const st=v.game.stocks.find(s=>s.id===t.sid);if(!st)continue;const cp=curPrice(st);const p=cp.p||0;if(cp.hidden)unknown=true;
+    vol[t.sid]=vol[t.sid]||0;net[t.sid]=net[t.sid]||0;
+    if(t.side==='sell'){const n=Math.min(t.qty,hold[t.sid]||0);if(n<t.qty)short[t.sid]=1;hold[t.sid]=(hold[t.sid]||0)-n;cash+=n*p;sell+=n*p;vol[t.sid]+=n;net[t.sid]-=n;}
+    else{want+=t.qty*p;const n=p?Math.min(t.qty,Math.floor(Math.max(0,cash)/p)):0;if(n<t.qty)short[t.sid]=1;hold[t.sid]=(hold[t.sid]||0)+n;cash-=n*p;buy+=n*p;vol[t.sid]+=n;net[t.sid]+=n;}}
+  return{buy,sell,after:cash,unknown,vol,net,hold,short,wantBuy:want};
 }
 function draftCost(){const r=simDraft();return{buy:r.buy,sell:r.sell,after:r.after,unknown:r.unknown,short:r.wantBuy-r.buy>0.5};}
-function estLine(sid){const r=simDraft();const n=r.net[sid]||0;return`About ${r.vol[sid]||0} shares of volume · you end ${n>=0?'+':''}${n}`;}
+function estLine(sid){const r=simDraft();const n=r.net[sid]||0;return`${r.vol[sid]||0} shares of volume · you end ${n>=0?'+':''}${n}${r.short[sid]?' · some won\'t fill':''}`;}
 function barHtml(){
   const v=S.v;if(!v||!v.me||v.phase!=='trading'||!S.draft)return'';
   const c=draftCost();const over=c.short;
@@ -501,12 +506,17 @@ const A={
   async start(){try{await api('start',{code:S.code,token:S.sess.token});poll();}catch(e){toast(e.message);}},
   async next(){try{await api('next',{code:S.code,token:S.sess.token});poll();}catch(e){toast(e.message);}},
   async endNow(){try{await api('endNow',{code:S.code,token:S.sess.token});poll();}catch(e){toast(e.message);}},
-  max(b){
-    const sid=b.dataset.s,k=b.dataset.k;const t=S.draft.trades[sid]||(S.draft.trades[sid]={buy:0,sell:0});const me=S.v.me;
-    if(k==='sell')t.sell=me.holdings[sid]||0;
-    else{t.buy=0;const c=draftCost();const st=S.v.game.stocks.find(s=>s.id===sid);const p=curPrice(st).p||1;t.buy=Math.max(0,Math.floor(c.after/p));if(t.buy&&(+t.times||1)>1&&!(+t.sell)){t.times=1;}}
-    queueSave();render(true);
+  add(b){
+    const sid=b.dataset.s,side=b.dataset.k;const q=Math.floor(+S.draft.qty[sid]||0);
+    if(q<=0){toast('Enter how many shares first.');return;}
+    S.draft.trades.push({sid,side,qty:q});queueSave();render(true);
   },
+  maxq(b){
+    const sid=b.dataset.s;const r=simDraft();const st=S.v.game.stocks.find(s=>s.id===sid);const p=curPrice(st).p||1;
+    S.draft.qty[sid]=b.dataset.k==='buy'?Math.max(0,Math.floor(r.after/p)):Math.max(0,r.hold[sid]||0);render(true);
+  },
+  undo(b){const sid=b.dataset.s;for(let i=S.draft.trades.length-1;i>=0;i--)if(S.draft.trades[i].sid===sid){S.draft.trades.splice(i,1);break;}queueSave();render(true);},
+  clr(b){S.draft.trades=S.draft.trades.filter(x=>x.sid!==b.dataset.s);queueSave();render(true);},
   secret(b){S.draft.secret=S.draft.secret===b.dataset.s?null:b.dataset.s;queueSave();render(true);},
   hintAsk(b){S.hintAsk=b.dataset.s;render(true);},
   hintNo(){S.hintAsk=null;render(true);},
@@ -520,9 +530,11 @@ document.addEventListener('click',e=>{const b=e.target.closest('[data-a]');if(!b
 document.addEventListener('input',e=>{
   const el=e.target;
   if(el.dataset.f){S.form[el.dataset.f]=el.dataset.f==='code'||el.dataset.f==='tvcode'?el.value.toUpperCase():el.value;return;}
-  if(el.dataset.q&&S.draft){const sid=el.dataset.s;const t=S.draft.trades[sid]||(S.draft.trades[sid]={buy:0,sell:0});t[el.dataset.q]=Math.max(0,Math.floor(+el.value||0));$('#barHost').innerHTML=barHtml();document.querySelectorAll('[data-est]').forEach(x=>x.textContent=estLine(x.dataset.est));tick();queueSave();}
+  if(el.dataset.q&&S.draft){S.draft.qty[el.dataset.s]=el.value===''?'':Math.max(0,Math.floor(+el.value||0));}
 });
 document.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.dataset&&e.target.dataset.q)e.target.blur();});
+/* keep the shares box focused while tapping Buy/Sell on phones */
+document.addEventListener('mousedown',e=>{if(e.target.closest('[data-a=add]'))e.preventDefault();});
 /* keep the TV awake */
 async function wake(){try{if(navigator.wakeLock)S.wl=await navigator.wakeLock.request('screen');}catch(e){}}
 if(S.mode==='tv'){document.addEventListener('click',wake,{once:true});wake();document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')wake();});}
