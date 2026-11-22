@@ -160,7 +160,8 @@ const actions = {
     for (const sid of ids) {
       const t = (b.trades || {})[sid]; if (!t) continue;
       const buy = Math.max(0, Math.min(1e6, Math.floor(+t.buy || 0))), sell = Math.max(0, Math.min(1e6, Math.floor(+t.sell || 0)));
-      if (buy || sell) trades[sid] = { buy, sell };
+      const times = Math.max(1, Math.min(1000, Math.floor(+t.times || 1)));
+      if (buy || sell) trades[sid] = { buy, sell, times };
     }
     let secret = ids.includes(b.secret) ? b.secret : null;
     if (secret && p.secretsLeft <= 0) secret = null;

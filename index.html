@@ -283,7 +283,7 @@ function vHome(){
   <section class="howto">
     <div><span class="label">Each round</span><p>A countdown runs. Enter how many shares of each stock to buy and to sell, then lock in. When time runs out, whatever you entered goes through.</p></div>
     <div><span class="label">Midpoint</span><p>Words fill into the rules a few at a time. When the middle round closes, every stock reveals one more word at once.</p></div>
-    <div><span class="label">Clues</span><p>Prices, shares bought and sold, and who holds what. Buying and selling the same stock in one round counts twice toward its volume.</p></div>
+    <div><span class="label">Clues</span><p>Prices, shares bought and sold, and who holds what. Use Repeat to sell and buy the same stock over and over in one round. Every fill counts toward its volume.</p></div>
     <div><span class="label">Secrets ×3</span><p>Black out a stock for a round: its trades, holdings and next price are hidden from everyone. Some rules react to secrets.</p></div>
     <div><span class="label">One hint</span><p>Pay 15% of your starting cash to read one stock's full rule. Only you see it.</p></div>
   </section>`;
@@ -381,7 +381,8 @@ function stockCard(st,editable){
     order=`<div class="order">
       <div class="qty"><span class="lbl b">Buy</span><input type="number" inputmode="numeric" min="0" id="b-${st.id}" data-q="buy" data-s="${st.id}" value="${t.buy||''}" placeholder="0" aria-label="Shares to buy"><button class="btn sm" data-a="max" data-s="${st.id}" data-k="buy">Max</button></div>
       <div class="qty"><span class="lbl s">Sell</span><input type="number" inputmode="numeric" min="0" id="s-${st.id}" data-q="sell" data-s="${st.id}" value="${t.sell||''}" placeholder="0" aria-label="Shares to sell"><button class="btn sm" data-a="max" data-s="${st.id}" data-k="sell">All</button></div>
-      ${t.buy&&t.sell?`<span class="wash">Buying and selling: ${(+t.buy)+(Math.min(+t.sell,me.holdings[st.id]||0))} shares of volume</span>`:''}
+      <div class="qty"><span class="lbl">Repeat</span><input type="number" inputmode="numeric" min="1" max="1000" id="r-${st.id}" data-q="times" data-s="${st.id}" value="${t.times>1?t.times:''}" placeholder="×1" aria-label="Times to repeat sell then buy"><span class="muted" style="font-size:12px;width:44px">times</span></div>
+      ${(t.buy||t.sell)?`<span class="wash" data-est="${st.id}">${estLine(st.id)}</span>`:''}
       <div class="acts"><button class="btn sm secret ${secretOn?'on':''}" data-a="secret" data-s="${st.id}" ${!secretOn&&me.secretsLeft<=0?'disabled':''}><i class="lock"></i>${secretOn?'Secret on':'Use secret'}</button>${hintBtn}</div>
       ${cp.hidden?`<p class="muted" style="font-size:12px">The price is hidden right now. Orders fill at the real price; buys stop when your cash runs out.</p>`:''}
     </div>`;
@@ -397,18 +398,27 @@ function stockCard(st,editable){
     ${order}
   </article>`;
 }
-function draftCost(){
-  const v=S.v,me=v.me;let buy=0,sell=0,unknown=false;
-  for(const st of v.game.stocks){const t=S.draft.trades[st.id];if(!t)continue;const cp=curPrice(st);if(cp.hidden)unknown=true;
-    buy+=(+t.buy||0)*(cp.p||0);sell+=Math.min(+t.sell||0,me.holdings[st.id]||0)*(cp.p||0);}
-  return{buy,sell,after:me.cash+sell-buy,unknown};
+function simDraft(){
+  const v=S.v,me=v.me;let cash=me.cash;const hold={...me.holdings};const vol={},net={};let buy=0,sell=0,unknown=false;
+  const tr=S.draft.trades;const ids=Object.keys(tr);const px={};
+  for(const sid of ids){const st=v.game.stocks.find(s=>s.id===sid);const cp=curPrice(st);px[sid]=cp.p||0;if(cp.hidden)unknown=true;vol[sid]=0;net[sid]=0;}
+  const tm=t=>Math.max(1,Math.min(1000,Math.floor(+t.times||1)));
+  const maxT=Math.max(1,...ids.map(i=>tm(tr[i])));
+  for(let k=1;k<=maxT;k++){
+    for(const sid of ids){const t=tr[sid];if(k>tm(t))continue;const n=Math.min(+t.sell||0,hold[sid]||0);if(n>0){hold[sid]=(hold[sid]||0)-n;cash+=n*px[sid];sell+=n*px[sid];vol[sid]+=n;net[sid]-=n;}}
+    for(const sid of ids){const t=tr[sid];if(k>tm(t)||!px[sid])continue;const n=Math.min(+t.buy||0,Math.floor(Math.max(0,cash)/px[sid]));if(n>0){hold[sid]=(hold[sid]||0)+n;cash-=n*px[sid];buy+=n*px[sid];vol[sid]+=n;net[sid]+=n;}}
+  }
+  return{buy,sell,after:cash,unknown,vol,net,wantBuy:ids.reduce((a,i)=>a+(+tr[i].buy||0)*tm(tr[i])*px[i],0)};
 }
+function draftCost(){const r=simDraft();return{buy:r.buy,sell:r.sell,after:r.after,unknown:r.unknown,short:r.wantBuy-r.buy>0.5};}
+function estLine(sid){const r=simDraft();const n=r.net[sid]||0;return`About ${r.vol[sid]||0} shares of volume · you end ${n>=0?'+':''}${n}`;}
 function barHtml(){
   const v=S.v;if(!v||!v.me||v.phase!=='trading'||!S.draft)return'';
-  const c=draftCost();const over=c.after<-0.005;
+  const c=draftCost();const over=c.short;
   if(S.draft.submitted)return`<div class="bar"><div class="wrap"><span class="timer" data-timer></span><div class="sum"><div><span class="label">Status</span><b style="color:var(--up)">Locked in</b></div><div><span class="label">Cash after</span><b>${money0(c.after)}${c.unknown?' ~':''}</b></div></div><button class="btn big" data-a="unlock">Change orders</button></div></div>`;
   return`<div class="bar"><div class="wrap">
     <span class="timer" data-timer></span>
+    ${over?'<span class="err" style="font-size:12px;width:100%">Not enough cash for every buy. Some won\'t fill.</span>':''}
     <div class="sum"><div><span class="label">Buying</span><b>${money0(c.buy)}</b></div><div><span class="label">Selling</span><b>${money0(c.sell)}</b></div>
       <div><span class="label">Cash after</span><b style="color:${over?'var(--down)':'inherit'}">${money0(c.after)}${c.unknown?' ~':''}</b></div></div>
     <button class="btn primary big" data-a="lock">Lock in</button>
@@ -492,7 +502,7 @@ const A={
   max(b){
     const sid=b.dataset.s,k=b.dataset.k;const t=S.draft.trades[sid]||(S.draft.trades[sid]={buy:0,sell:0});const me=S.v.me;
     if(k==='sell')t.sell=me.holdings[sid]||0;
-    else{t.buy=0;const c=draftCost();const st=S.v.game.stocks.find(s=>s.id===sid);const p=curPrice(st).p||1;t.buy=Math.max(0,Math.floor(c.after/p));}
+    else{t.buy=0;const c=draftCost();const st=S.v.game.stocks.find(s=>s.id===sid);const p=curPrice(st).p||1;t.buy=Math.max(0,Math.floor(c.after/p));if(t.buy&&(+t.times||1)>1&&!(+t.sell)){t.times=1;}}
     queueSave();render(true);
   },
   secret(b){S.draft.secret=S.draft.secret===b.dataset.s?null:b.dataset.s;queueSave();render(true);},
@@ -508,7 +518,7 @@ document.addEventListener('click',e=>{const b=e.target.closest('[data-a]');if(!b
 document.addEventListener('input',e=>{
   const el=e.target;
   if(el.dataset.f){S.form[el.dataset.f]=el.dataset.f==='code'||el.dataset.f==='tvcode'?el.value.toUpperCase():el.value;return;}
-  if(el.dataset.q&&S.draft){const sid=el.dataset.s;const t=S.draft.trades[sid]||(S.draft.trades[sid]={buy:0,sell:0});t[el.dataset.q]=Math.max(0,Math.floor(+el.value||0));$('#barHost').innerHTML=barHtml();tick();queueSave();}
+  if(el.dataset.q&&S.draft){const sid=el.dataset.s;const t=S.draft.trades[sid]||(S.draft.trades[sid]={buy:0,sell:0});t[el.dataset.q]=Math.max(0,Math.floor(+el.value||0));$('#barHost').innerHTML=barHtml();document.querySelectorAll('[data-est]').forEach(x=>x.textContent=estLine(x.dataset.est));tick();queueSave();}
 });
 document.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.dataset&&e.target.dataset.q)e.target.blur();});
 /* keep the TV awake */

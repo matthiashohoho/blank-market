@@ -132,7 +132,7 @@ function applyEffect(e,p,X){
   return Math.max(1,round2(p*(1+ch)));
 }
 
-/* orders: {playerId:{trades:{sid:{buy,sell}}, secret:sid|null}}. Sells fill first, then buys. */
+/* orders: {playerId:{trades:{sid:{buy,sell,times}}, secret:sid|null}} */
 function resolveRound(S,orders){
   const s=JSON.parse(JSON.stringify(S));const r=s.round;const rng=rngFrom((s.seed^(r*2654435761))>>>0);
   const ids=s.stocks.map(x=>x.id);const z=()=>Object.fromEntries(ids.map(i=>[i,0]));
@@ -143,18 +143,24 @@ function resolveRound(S,orders){
   }
   const price={};s.stocks.forEach(st=>price[st.id]=st.price);
   const buy=z(),sell=z(),buyers=z(),sellers=z();
-  for(const p of s.players){
-    const t=(orders[p.id]||{}).trades||{};
-    for(const sid of ids){const q=Math.max(0,Math.floor(+((t[sid]||{}).sell)||0));if(!q)continue;
-      const n=Math.min(q,p.holdings[sid]||0);if(n<=0)continue;
-      p.holdings[sid]-=n;p.cash=round2(p.cash+n*price[sid]);sell[sid]+=n;sellers[sid]++;}
+  /* Each stock's {buy, sell, times}: one cycle = sells, then buys. Repeats run more cycles at the same price. */
+  const T=p=>(orders[p.id]||{}).trades||{};
+  const times=(t)=>Math.max(1,Math.min(1000,Math.floor(+t.times||1)));
+  let maxT=1;for(const p of s.players)for(const sid of ids){const t=T(p)[sid];if(t)maxT=Math.max(maxT,times(t));}
+  const bSet={},sSet={};ids.forEach(i=>{bSet[i]=new Set();sSet[i]=new Set();});
+  for(let k=1;k<=maxT;k++){
+    for(const p of s.players){
+      for(const sid of ids){const t=T(p)[sid];if(!t||k>times(t))continue;const q=Math.max(0,Math.floor(+t.sell||0));if(!q)continue;
+        const n=Math.min(q,p.holdings[sid]||0);if(n<=0)continue;
+        p.holdings[sid]-=n;p.cash=round2(p.cash+n*price[sid]);sell[sid]+=n;sSet[sid].add(p.id);}
+    }
+    for(const p of shuffle(rng,s.players)){
+      for(const sid of ids){const t=T(p)[sid];if(!t||k>times(t))continue;const q=Math.max(0,Math.floor(+t.buy||0));if(!q)continue;
+        const n=Math.min(q,Math.floor(Math.max(0,p.cash)/price[sid]));if(n<=0)continue;
+        p.holdings[sid]=(p.holdings[sid]||0)+n;p.cash=round2(p.cash-n*price[sid]);buy[sid]+=n;bSet[sid].add(p.id);}
+    }
   }
-  for(const p of shuffle(rng,s.players)){
-    const t=(orders[p.id]||{}).trades||{};
-    for(const sid of ids){const q=Math.max(0,Math.floor(+((t[sid]||{}).buy)||0));if(!q)continue;
-      const n=Math.min(q,Math.floor(Math.max(0,p.cash)/price[sid]));if(n<=0)continue;
-      p.holdings[sid]=(p.holdings[sid]||0)+n;p.cash=round2(p.cash-n*price[sid]);buy[sid]+=n;buyers[sid]++;}
-  }
+  ids.forEach(i=>{buyers[i]=bSet[i].size;sellers[i]=sSet[i].size;});
   const holders=z(),whale=z(),prev={};let total=0;
   for(const sid of ids){
     let sum=0,mx=0;for(const p of s.players){const h=p.holdings[sid]||0;if(h>0)holders[sid]++;sum+=h;mx=Math.max(mx,h);}
