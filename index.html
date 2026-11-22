@@ -125,6 +125,18 @@ input[type=text],input[type=number],input[type=tel]{background:var(--bg);border:
 .btn.secret.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
 .btn.hint{color:var(--hint)}
 .wash{font-size:12px;color:var(--accent)}
+.board{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 16px;margin-bottom:14px;display:grid;gap:8px}
+.board ol{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+.board li{display:grid;grid-template-columns:22px 1fr auto auto;gap:10px;align-items:center;padding:4px 0;border-top:1px solid var(--line)}
+.board li:first-child{border-top:0}
+.board li.me .nm{color:var(--accent)}
+.board .rk{font-family:var(--f-display);font-weight:800;font-size:18px;color:var(--muted)}
+.board li:first-child .rk{color:var(--accent)}
+.board .nm{font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.board .v{font-weight:600}
+.board.big ol{grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:6px 24px}
+.board.big li{border-top:0;font-size:20px}
+.board.big .rk{font-size:26px}
 .qty2{display:grid;grid-template-columns:1fr auto auto;gap:8px}
 .qty2 input{text-align:right}
 .btn.tbuy{background:var(--up);border-color:var(--up);color:#07140c;min-width:64px}
@@ -358,6 +370,11 @@ function vLobbyPlayer(){
   </div>`;
 }
 function estWorth(){const v=S.v,me=v.me;return me.cash+v.game.stocks.reduce((a,st)=>a+(me.holdings[st.id]||0)*(curPrice(st).p||0),0);}
+function boardHtml(big){
+  const g=S.v.game;if(!g.leaderboard)return'';const me=S.v.myId;
+  return`<section class="board ${big?'big':''}" aria-label="Leaderboard"><span class="label">Leaderboard</span><ol>${g.leaderboard.map((p,i)=>{const c=p.pct>0.005?'up':p.pct<-0.005?'down':'';
+    return`<li class="${p.id===me?'me':''}"><span class="rk">${i+1}</span><span class="nm">${esc(p.name)}${p.id===me?' <span class="muted">(you)</span>':''}</span><span class="num v">${money0(p.nw)}</span><span class="chg ${c}">${p.pct>0?'+':''}${p.pct.toFixed(1)}%</span></li>`;}).join('')}</ol></section>`;
+}
 function vDesk(){
   const v=S.v,g=v.game,me=v.me;const trading=v.phase==='trading';const locked=trading&&S.draft.submitted;
   let banner='';
@@ -370,7 +387,7 @@ function vDesk(){
       ${v.isHost?`<button class="btn primary big" data-a="next">Start round ${g.round}</button>`:`<p class="muted">Waiting for the host to start round ${g.round}.</p>`}</div>`;
   }
   const ready=trading?`<div class="pills" style="margin-bottom:12px">${g.players.map(p=>`<span class="pill ${v.ready.includes(p.id)?'ok':''}">${esc(p.name)}${v.ready.includes(p.id)?' · locked in':''}</span>`).join('')}${v.isHost?`<button class="btn sm ghost" data-a="endNow">End round now</button>`:''}</div>`:'';
-  return`${ready}
+  return`${ready}${boardHtml(false)}
   <div class="desk">
     <div class="who"><span class="label">Your desk</span><h2>${esc(me.name)}</h2></div>
     <div class="stat"><span class="label">Cash</span><span class="v">${money(me.cash)}</span></div>
@@ -488,7 +505,7 @@ function vTV(){
       <div class="tvround"><span class="rn">Round ${Math.min(g.round,g.rounds)} of ${g.rounds}</span>${roundbar(g)}</div>
       <div class="tvclock">${trading?`<small>Time left</small><span data-timer></span>`:`<small>Code</small>${esc(v.code)}`}</div>
     </div>
-    ${ready}${banner}${trading?newsHtml():''}
+    ${ready}${banner}${boardHtml(true)}${trading?newsHtml():''}
     <div class="grid">${g.stocks.map(st=>stockCard(st,false)).join('')}</div>`;
 }
 function drawQR(){const el=$('#qr');if(!el)return;if(!window.QRCode){el.hidden=true;return;}el.innerHTML='';new QRCode(el,{text:`${location.origin}/?join=${S.v.code}`,width:260,height:260,colorDark:'#0c1118',colorLight:'#ffffff'});}

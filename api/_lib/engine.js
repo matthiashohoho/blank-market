@@ -233,6 +233,12 @@ function publicView(g){
       report.st[st.id]=(last.secrets.includes(st.id)&&!g.over)?{hidden:true}:{buy:r.buy,sell:r.sell,buyers:r.buyers,sellers:r.sellers,before:r.before,after:r.after,hold:r.hold};}}
   const out={round:g.round,rounds:g.settings.rounds,over:g.over,settings:g.settings,stocks,report,
     players:g.players.map(p=>({id:p.id,name:p.name}))};
+  /* Live leaderboard: holdings at the last price everyone can see, hint spending added back until the end. */
+  if(!g.over){
+    const seen={};stocks.forEach(st=>{for(let i=st.history.length-1;i>=0;i--)if(st.history[i]!=null){seen[st.id]=st.history[i];break;}});
+    out.leaderboard=g.players.map(p=>{const nw=round2(p.cash+(p.hint?g.settings.hintCost:0)+g.stocks.reduce((a,st)=>a+(p.holdings[st.id]||0)*(seen[st.id]||0),0));
+      return{id:p.id,name:p.name,nw,pct:round2((nw/g.settings.startCash-1)*100)};}).sort((a,b)=>b.nw-a.nw);
+  }
   if(g.over){
     out.standings=g.players.map(p=>({id:p.id,name:p.name,nw:netWorth(g,p),cash:p.cash,secretsUsed:p.secretsUsed,hint:p.hint,hintRound:p.hintRound}))
       .sort((a,b)=>b.nw-a.nw);
