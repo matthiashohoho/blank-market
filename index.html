@@ -102,7 +102,8 @@ input[type=text],input[type=number],input[type=tel]{background:var(--bg);border:
 .sparkbox{padding:0 16px}
 .rule{margin:4px 16px 0;padding:11px 12px;background:var(--surface-2);border-radius:8px;font-size:14px;line-height:1.8}
 .rule .label{display:flex;justify-content:space-between;margin-bottom:2px}
-.blank{display:inline-block;min-width:3.4em;height:1.05em;border-bottom:2px dashed var(--accent);vertical-align:-2px;margin:0 2px}
+.blankgrp{white-space:nowrap}
+.blank{display:inline-block;min-width:2.6em;height:1.05em;border-bottom:2px dashed var(--accent);vertical-align:-2px;margin:0 2px}
 .fill{background:var(--accent-soft);border-radius:4px;padding:1px 4px;font-weight:600}
 .fill.new{outline:2px solid var(--accent)}
 .fill.hint{background:var(--hint-soft);color:var(--hint)}
@@ -300,9 +301,10 @@ function spark(st,rounds,h=44){
   st.history.forEach((v,i)=>{if(v==null){pen=false;return;}d+=(pen?'L':'M')+X(i).toFixed(1)+' '+Y(v).toFixed(1)+' ';pen=true;lastI=i;});
   return`<div class="sparkbox"><svg class="spark" viewBox="0 0 ${W} ${h}" preserveAspectRatio="none" aria-hidden="true"><path d="${d}" fill="none" stroke="${st.color}" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round"/></svg></div>`;
 }
+function blanks(n){return`<span class="blankgrp" role="img" aria-label="${n} hidden ${n===1?'word':'words'}">${Array.from({length:n},()=>'<span class="blank"></span>').join(' ')}</span>`;}
 function ruleHtml(st,hintRule){
   const toks=hintRule&&hintRule.sid===st.id?hintRule.rule.map((t,i)=>{const p=st.rule[i];return p&&p.k==='new'?p:(t.k==='hint'?{x:t.x,k:'hint'}:t.k==='rev'?{x:t.x,k:'rev'}:{x:t.x});}):st.rule;
-  return toks.map(t=>t.k==='blank'?'<span class="blank" role="img" aria-label="hidden word"></span>':t.k?`<span class="fill ${t.k==='new'?'new':t.k==='hint'?'hint':t.k==='end'?'end':''}">${esc(t.x)}</span>`:esc(t.x)).join('');
+  return toks.map(t=>t.k==='blank'?blanks(t.n||1):t.k?`<span class="fill ${t.k==='new'?'new':t.k==='hint'?'hint':t.k==='end'?'end':''}">${esc(t.x)}</span>`:esc(t.x)).join('');
 }
 function nameOf(id){const s=S.v.game.stocks.find(x=>x.id===id);return s?s.name:id;}
 function pname(id){const p=S.v.game.players.find(x=>x.id===id);return p?p.name:'?';}

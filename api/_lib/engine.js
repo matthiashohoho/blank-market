@@ -13,11 +13,13 @@ const POOL=[
 const COLORS=['#2f6fdf','#d9480f','#2b9a66','#9c36b5','#b8860b','#0c8599','#c2255c'];
 const COND_TYPES=['volGte','buyersGte','sideCmp','volVs','secret','holdersGte','parity','mult','tMoved','priceVs','totalVol','quiet','whale','rank'];
 
-function niceVol(r,nP){return pick(r,[20,30,50,80,100])*Math.max(1,Math.ceil(nP/2));}
+function nice(x){x=Math.max(5,x);const st=x<50?5:x<200?10:x<1000?50:100;return Math.max(5,Math.round(x/st)*st);}
+/* Volume targets scale with how many shares players can actually afford, so every rule is reachable. */
+function niceVol(r,c,mult){const afford=c.cash/c.start;const crowd=1+(c.nP-1)*0.5;const cap=Math.max(5,Math.floor(afford*c.nP*0.8/5)*5);return Math.min(cap,nice(afford*pick(r,mult)*crowd));}
 function someK(r,nP){return nP<=2?(r()<.5?1:2):2+Math.floor(r()*(nP-1));}
 function genCond(type,r,c){
   switch(type){
-    case 'volGte':return{type,side:r()<.6?'buy':'sell',n:niceVol(r,c.nP)};
+    case 'volGte':{const side=r()<.6?'buy':'sell';return{type,side,n:niceVol(r,c,side==='buy'?[0.3,0.5,0.7,1,1.4]:[0.2,0.35,0.5,0.8])};}
     case 'buyersGte':return{type,side:r()<.6?'buy':'sell',k:someK(r,c.nP)};
     case 'sideCmp':{const a=r()<.5?'sell':'buy';return{type,a,b:a==='buy'?'sell':'buy'};}
     case 'volVs':return{type,t:pick(r,c.others),dir:r()<.5?'higher':'lower'};
@@ -27,23 +29,33 @@ function genCond(type,r,c){
     case 'mult':return{type,m:pick(r,[3,4,5])};
     case 'tMoved':return{type,t:pick(r,c.others),dir:r()<.5?'up':'down'};
     case 'priceVs':return{type,dir:r()<.5?'above':'below',p:Math.round(c.start*pick(r,[0.8,0.9,1.1,1.25,1.5])/5)*5};
-    case 'totalVol':return{type,n:niceVol(r,c.nP)*pick(r,[2,3])};
+    case 'totalVol':return{type,n:niceVol(r,c,[0.8,1.2,1.8,2.5])};
     case 'quiet':return{type};
     case 'whale':return{type,pct:pick(r,[60,70,80])};
     case 'rank':return{type,dir:r()<.5?'most':'least'};
   }
 }
+const BIG=[4,6,7,9,12,14,17,20,23,28,33,40],SMALL=[2,3,4,6,8,11,13];
+function sizeEff(r,c,sign,mags){
+  const m=pick(r,mags);
+  if(r()<.22)return{kind:'abs',v:sign*Math.max(1,Math.round(c.start*m/100))};
+  return{kind:'pct',v:sign*m};
+}
+function effSize(e,c){return e.kind==='pct'?Math.abs(e.v):e.kind==='abs'?Math.abs(e.v)/c.start*100:0;}
 function genEffects(r,c){
   let th;const x=r();
   if(x<.12)th={kind:'copy',t:pick(r,c.others)};
   else if(x<.2)th={kind:'mirror',t:pick(r,c.others)};
-  else th={kind:'pct',v:(r()<.55?1:-1)*pick(r,[10,15,20,25])};
-  let el;const y=r();
-  if(th.kind==='pct'){
-    if(y<.25)el={kind:'flat'};
-    else if(y>.88)el={kind:'pct',v:Math.sign(th.v)*5};
-    else el={kind:'pct',v:-Math.sign(th.v)*pick(r,[5,10,15])};
-  }else el={kind:'pct',v:(r()<.5?1:-1)*pick(r,[5,10])};
+  else th=sizeEff(r,c,r()<.55?1:-1,BIG);
+  let el;
+  for(let tries=0;tries<10;tries++){
+    const y=r();
+    if(th.kind==='copy'||th.kind==='mirror')el=sizeEff(r,c,r()<.5?1:-1,SMALL);
+    else if(y<.22)el={kind:'flat'};
+    else if(y>.85)el=sizeEff(r,c,Math.sign(th.v),SMALL);
+    else el=sizeEff(r,c,-Math.sign(th.v),SMALL);
+    if(el.kind==='flat'||Math.abs(effSize(el,c)-effSize(th,c))>=4)break;
+  }
   return[th,el];
 }
 function ruleTokens(rule,nameOf){
@@ -67,6 +79,7 @@ function ruleTokens(rule,nameOf){
   }
   const eff=e=>{
     if(e.kind==='pct')return[B(e.v>0?'rises':'falls'),T(' '),B(Math.abs(e.v)+'%')];
+    if(e.kind==='abs')return[B(e.v>0?'rises':'falls'),T(' by '),B('$'+Math.abs(e.v))];
     if(e.kind==='flat')return[B('stays the same')];
     if(e.kind==='copy')return[B('copies'),T(' '),B(nameOf(e.t)+poss(e.t)),T(" move from the previous round")];
     return[B('does the opposite of'),T(' '),B(nameOf(e.t)+poss(e.t)),T(" move from the previous round")];
@@ -84,7 +97,7 @@ function newGame(settings,players,seed){
   const nameOf=id=>stocks.find(x=>x.id===id).name;
   let total=0;
   stocks.forEach((st,i)=>{
-    const c={self:st.id,others:stocks.filter(x=>x!==st).map(x=>x.id),nP:players.length,start:st.price};
+    const c={self:st.id,others:stocks.filter(x=>x!==st).map(x=>x.id),nP:players.length,start:st.price,cash:settings.startCash};
     const cond=genCond(types[i%types.length],r,c);
     const[th,el]=genEffects(r,c);
     st.rule={self:st.id,cond,then:th,else:el};
@@ -126,6 +139,7 @@ function evalCond(c,sid,X){
 function applyEffect(e,p,X){
   let ch=0;
   if(e.kind==='pct')ch=e.v/100;
+  else if(e.kind==='abs')ch=e.v/p;
   else if(e.kind==='copy')ch=X.prev[e.t]??0;
   else if(e.kind==='mirror')ch=-(X.prev[e.t]??0);
   ch=Math.max(-.5,Math.min(.5,ch));
@@ -209,7 +223,7 @@ function publicView(g){
     return{id:st.id,name:st.name,color:st.color,start:st.start,
       history:st.history.map((v,i)=>hiddenIdx(g,st.id,i)?null:v),
       rule:toks.map((t,i)=>{const isB=st.blanks.includes(i);
-        if(isB&&!st.revealed.includes(i))return g.over?{x:t.x,k:'end'}:{k:'blank'};
+        if(isB&&!st.revealed.includes(i))return g.over?{x:t.x,k:'end'}:{k:'blank',n:t.x.trim().split(/\s+/).length};
         return isB?{x:t.x,k:newly.includes(i)?'new':'rev'}:{x:t.x};})};
   });
   let report=null;
